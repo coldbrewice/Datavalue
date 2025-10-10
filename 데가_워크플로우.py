@@ -17,9 +17,6 @@ ABC_TO_530 = {"A": 5, "B": 3, "C": 0}
 # ✅ DQI 등급 → 보정계수 (요청표 기준)
 DQI_COEF = {"A": 1.10, "B": 1.05, "C": 1.00, "D": 0.90, "E": 0.80}
 
-# 리스크 카테고리 → 계수
-RISK_COEF = {"관심": 1.00, "주의": 0.90, "심각": 0.80}
-
 # 사이드바 단계 목록(라벨, 번호)
 STEPS = [
     ("① 사전준비", 1),
@@ -109,7 +106,7 @@ def main():
         # DQI는 Step5에서만 계산·적용
         st.session_state.quality = {"DQI점수": 0.0, "자동등급": "E", "보정계수": DQI_COEF["E"]}
     if "risk" not in st.session_state:
-        st.session_state.risk = {"방식": "최대 위험", "행": []}
+        st.session_state.risk = {"방식": "총점기준", "행": []}
 
     def go_to(step: int):
         st.session_state.step = int(step)
@@ -332,19 +329,19 @@ def main():
         st.button("다음(⑥ 법률리스크 조정)", key="n5", on_click=go_to, args=(6,))
         st.button("이전", key="b5", on_click=go_to, args=(4,))
 
-       # ===========================================================
+    # ===========================================================
     # STEP 6. 법률리스크 조정 (권리성 + 시장성 + 사업성)
     # ===========================================================
     elif st.session_state.step == 6:
         st.subheader("⑥ 법률리스크 조정 — 리스크 매트릭스")
-        st.caption("발생가능성(P): 1/2/3, 영향도(I): 1/2/3, 위험도=P×I")
+        st.caption("발생가능성(P): 1/2/3, 영향도(I): 1/2/3, 위험도 = P×I (계수 0.6~1.0, 총점 기준)")
 
         def sel_p(label, key): return st.select_slider(label, options=[1, 2, 3], value=2, key=key)
         def sel_i(label, key): return st.select_slider(label, options=[1, 2, 3], value=2, key=key)
 
-        # -------------------------------------------------------
+        rdata = []
+
         # ① 권리성 리스크
-        # -------------------------------------------------------
         st.markdown("#### ① 권리성 리스크")
         right_rows = [
             ("개인정보 포함·미비식별", "가명처리·동의확보·PIA 수행"),
@@ -353,8 +350,6 @@ def main():
             ("영업비밀 침해 우려", "비밀관리계획 수립"),
             ("권리 취득 경로 불명확", "증빙자료 보완·소유자 확인"),
         ]
-
-        rdata = []
         for idx, (risk, action) in enumerate(right_rows):
             c1, c2, c3, c4 = st.columns([2, 1, 1, 2])
             with c1: st.write(f"**{risk}**")
@@ -365,9 +360,7 @@ def main():
                 st.write(f"카테고리: {cat} · 대응전략: {action}")
             rdata.append({"분류": "권리성", "위험항목": risk, "P": p, "I": i, "위험도": p*i, "카테고리": cat})
 
-        # -------------------------------------------------------
         # ② 시장성 리스크
-        # -------------------------------------------------------
         st.markdown("#### ② 시장성 리스크")
         market_rows = [
             ("대체재 급증", "지속적 제품 차별화, 독점계약 체결"),
@@ -376,7 +369,6 @@ def main():
             ("경쟁사 가격 인하", "서비스 번들링, 부가가치 제공"),
             ("법·제도 변화로 인한 수요 감소", "법규 모니터링, 대체 시장 모색"),
         ]
-
         for idx, (risk, action) in enumerate(market_rows):
             c1, c2, c3, c4 = st.columns([2, 1, 1, 2])
             with c1: st.write(f"**{risk}**")
@@ -387,9 +379,7 @@ def main():
                 st.write(f"카테고리: {cat} · 대응전략: {action}")
             rdata.append({"분류": "시장성", "위험항목": risk, "P": p, "I": i, "위험도": p*i, "카테고리": cat})
 
-        # -------------------------------------------------------
         # ③ 사업성 리스크
-        # -------------------------------------------------------
         st.markdown("#### ③ 사업성 리스크")
         biz_rows = [
             ("신규 서비스 개발 지연", "개발 일정 재조정, 외부 협력 강화"),
@@ -398,7 +388,6 @@ def main():
             ("인프라 확장 한계", "클라우드·분산처리 도입"),
             ("네트워크 효과 미흡", "사용자 참여 촉진 프로그램"),
         ]
-
         for idx, (risk, action) in enumerate(biz_rows):
             c1, c2, c3, c4 = st.columns([2, 1, 1, 2])
             with c1: st.write(f"**{risk}**")
@@ -409,29 +398,37 @@ def main():
                 st.write(f"카테고리: {cat} · 대응전략: {action}")
             rdata.append({"분류": "사업성", "위험항목": risk, "P": p, "I": i, "위험도": p*i, "카테고리": cat})
 
-        # -------------------------------------------------------
-        # 결과 요약 및 계수 산정
-        # -------------------------------------------------------
+        # 결과 요약 및 계수 산정 (총점 기준, 0.6 ~ 1.0)
         rdf = pd.DataFrame(rdata)
         st.dataframe(rdf, use_container_width=True, hide_index=True)
 
-        mode = st.radio("계수 적용 방식", ["최대 위험", "평균 위험"], index=0, key="riskmode")
-        if mode == "최대 위험":
-            order = {"관심": 0, "주의": 1, "심각": 2}
-            max_cat = rdf["카테고리"].iloc[
-                rdf["카테고리"].map(order).fillna(0).idxmax()
-            ] if len(rdf) > 0 else "관심"
-            lcoef = RISK_COEF[max_cat]; desc = max_cat
+        N = len(rdf)
+        total_risk = float(rdf["위험도"].sum()) if N > 0 else 0.0
+        min_total = 1 * N      # 모든 항목이 P=1, I=1
+        max_total = 9 * N      # 모든 항목이 P=3, I=3
+
+        if N == 0 or max_total == min_total:
+            severity = 0.0
         else:
-            avg = rdf["위험도"].mean() if len(rdf) > 0 else 0
-            desc = "심각" if avg >= 7 else ("주의" if avg >= 4 else "관심")
-            lcoef = RISK_COEF[desc]
+            severity = (total_risk - min_total) / (max_total - min_total)
+            severity = max(0.0, min(1.0, severity))  # 0~1로 클리핑
 
-        st.metric("리스크 계수", lcoef); st.caption(f"적용 기준: {mode} ({desc})")
+        # 리스크가 높을수록 계수 1.0 → 0.6 선형 감소
+        lcoef = 1.0 - 0.4 * severity
+        lcoef = float(round(max(0.6, min(1.0, lcoef)), 3))
 
+        st.metric("리스크 계수", lcoef)
+        st.caption(
+            f"총점 기준(0.6~1.0): 합계 위험도={total_risk:.0f}, "
+            f"최소={min_total}, 최대={max_total}, 정규화(severity)={severity:.2f}"
+        )
+
+        # 최종가치 계산 및 저장
         qv = float(st.session_state.scores.get("품질보정가치", 0.0))
         final_value = qv * lcoef
         st.session_state.scores["최종가치(리스크반영)"] = float(final_value)
+        st.session_state.risk["방식"] = "총점기준"
+        st.session_state.risk["행"] = rdata
         st.info(f"리스크 반영 전: {qv:,.0f} → 최종: {final_value:,.0f}")
 
         st.button("다음(⑦ 가격결정·보고서)", key="n6", on_click=go_to, args=(7,))
@@ -475,7 +472,7 @@ def main():
                 "meta": meta,
                 "scores": scores,
                 "quality": st.session_state.quality,
-                "risk_mode": st.session_state.risk.get("방식", "최대 위험"),
+                "risk_mode": st.session_state.risk.get("방식", "총점기준"),
                 "timestamp": datetime.now().isoformat()
             }
             st.download_button(
