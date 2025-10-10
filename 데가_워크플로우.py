@@ -332,25 +332,30 @@ def main():
         st.button("다음(⑥ 법률리스크 조정)", key="n5", on_click=go_to, args=(6,))
         st.button("이전", key="b5", on_click=go_to, args=(4,))
 
-    # ===========================================================
-    # STEP 6. 법률리스크 조정
+       # ===========================================================
+    # STEP 6. 법률리스크 조정 (권리성 + 시장성 + 사업성)
     # ===========================================================
     elif st.session_state.step == 6:
         st.subheader("⑥ 법률리스크 조정 — 리스크 매트릭스")
         st.caption("발생가능성(P): 1/2/3, 영향도(I): 1/2/3, 위험도=P×I")
 
-        risk_rows = [
+        def sel_p(label, key): return st.select_slider(label, options=[1, 2, 3], value=2, key=key)
+        def sel_i(label, key): return st.select_slider(label, options=[1, 2, 3], value=2, key=key)
+
+        # -------------------------------------------------------
+        # ① 권리성 리스크
+        # -------------------------------------------------------
+        st.markdown("#### ① 권리성 리스크")
+        right_rows = [
             ("개인정보 포함·미비식별", "가명처리·동의확보·PIA 수행"),
             ("저작권 미확인 콘텐츠 포함", "저작권자 확인·라이선스 취득"),
             ("제3자 제공 조건 불명확", "계약서 수정·이용범위 명시"),
             ("영업비밀 침해 우려", "비밀관리계획 수립"),
             ("권리 취득 경로 불명확", "증빙자료 보완·소유자 확인"),
         ]
-        def sel_p(label, key): return st.select_slider(label, options=[1, 2, 3], value=2, key=key)
-        def sel_i(label, key): return st.select_slider(label, options=[1, 2, 3], value=2, key=key)
 
         rdata = []
-        for idx, (risk, action) in enumerate(risk_rows):
+        for idx, (risk, action) in enumerate(right_rows):
             c1, c2, c3, c4 = st.columns([2, 1, 1, 2])
             with c1: st.write(f"**{risk}**")
             with c2: p = sel_p("P", f"rp_{idx}")
@@ -358,8 +363,55 @@ def main():
             with c4:
                 cat = risk_category(p, i)
                 st.write(f"카테고리: {cat} · 대응전략: {action}")
-            rdata.append({"위험항목": risk, "P": p, "I": i, "위험도": p * i, "카테고리": cat})
+            rdata.append({"분류": "권리성", "위험항목": risk, "P": p, "I": i, "위험도": p*i, "카테고리": cat})
 
+        # -------------------------------------------------------
+        # ② 시장성 리스크
+        # -------------------------------------------------------
+        st.markdown("#### ② 시장성 리스크")
+        market_rows = [
+            ("대체재 급증", "지속적 제품 차별화, 독점계약 체결"),
+            ("시장 성장 둔화", "신규 산업군 발굴, 활용분야 확장"),
+            ("WTP 하락", "가치 기반 가격전략 재설계"),
+            ("경쟁사 가격 인하", "서비스 번들링, 부가가치 제공"),
+            ("법·제도 변화로 인한 수요 감소", "법규 모니터링, 대체 시장 모색"),
+        ]
+
+        for idx, (risk, action) in enumerate(market_rows):
+            c1, c2, c3, c4 = st.columns([2, 1, 1, 2])
+            with c1: st.write(f"**{risk}**")
+            with c2: p = sel_p("P", f"mp_{idx}")
+            with c3: i = sel_i("I", f"mi_{idx}")
+            with c4:
+                cat = risk_category(p, i)
+                st.write(f"카테고리: {cat} · 대응전략: {action}")
+            rdata.append({"분류": "시장성", "위험항목": risk, "P": p, "I": i, "위험도": p*i, "카테고리": cat})
+
+        # -------------------------------------------------------
+        # ③ 사업성 리스크
+        # -------------------------------------------------------
+        st.markdown("#### ③ 사업성 리스크")
+        biz_rows = [
+            ("신규 서비스 개발 지연", "개발 일정 재조정, 외부 협력 강화"),
+            ("해외 진출 규제 리스크", "규제 컨설팅, 현지 파트너 확보"),
+            ("데이터 결합 표준 부재", "표준화 추진, 변환도구 개발"),
+            ("인프라 확장 한계", "클라우드·분산처리 도입"),
+            ("네트워크 효과 미흡", "사용자 참여 촉진 프로그램"),
+        ]
+
+        for idx, (risk, action) in enumerate(biz_rows):
+            c1, c2, c3, c4 = st.columns([2, 1, 1, 2])
+            with c1: st.write(f"**{risk}**")
+            with c2: p = sel_p("P", f"bp_{idx}")
+            with c3: i = sel_i("I", f"bi_{idx}")
+            with c4:
+                cat = risk_category(p, i)
+                st.write(f"카테고리: {cat} · 대응전략: {action}")
+            rdata.append({"분류": "사업성", "위험항목": risk, "P": p, "I": i, "위험도": p*i, "카테고리": cat})
+
+        # -------------------------------------------------------
+        # 결과 요약 및 계수 산정
+        # -------------------------------------------------------
         rdf = pd.DataFrame(rdata)
         st.dataframe(rdf, use_container_width=True, hide_index=True)
 
