@@ -10,8 +10,13 @@ import pandas as pd
 # 기본 설정
 # ===============================================
 st.set_page_config(page_title="데이터 가치평가 대시보드", layout="wide")
+
+# Title + Subtitle
 st.markdown("<h1 style='text-align:center; color:#0078D7;'>📊 데이터 가치평가 대시보드</h1>", unsafe_allow_html=True)
-st.caption("기본가치(V₀)에 보정요인(DQI·α·β·γ)과 법률리스크(Δ, 0.8~1.1)를 적용하여 최종가치를 산정합니다.")
+st.markdown(
+    "<h3 style='text-align:center; font-weight:500; margin-top:-6px;'>-기본가치 산출 및 가치보정-</h3>",
+    unsafe_allow_html=True
+)
 st.divider()
 
 # ===============================================
@@ -19,13 +24,15 @@ st.divider()
 # ===============================================
 GRADE_ABC = ["", "A", "B", "C"]  # 공란 선택 가능(미입력시 1.0)
 ABC_TO_530 = {"A": 5, "B": 3, "C": 0}
-COEF_BY_GRADE = {"A": 1.10, "B": 1.05, "C": 1.00, "D": 0.90, "E": 0.80}  # 0.8~1.1
+# A~E → 1.10~0.80 (모든 보정요인 공통 범위 0.8~1.1)
+COEF_BY_GRADE = {"A": 1.10, "B": 1.05, "C": 1.00, "D": 0.90, "E": 0.80}
 
 def fmt_money(x):
     try: return f"{float(x):,.0f}"
     except: return "0"
 
-def wscore_from_530(score_5, weight_pct): return (float(score_5)/5.0)*float(weight_pct)
+def wscore_from_530(score_5, weight_pct):
+    return (float(score_5)/5.0) * float(weight_pct)
 
 def auto_grade(score):
     if score >= 90: return "A"
@@ -77,7 +84,7 @@ GAMMA_TABLE = [
     ("기술 인프라 대응력",      "고도화·보통·미비",          15),
 ]
 
-# Δ(법률리스크) — 이미지 표 그대로(권리/시장/사업 각각 5개)
+# δ(법률리스크) — 이미지 표 그대로(권리/시장/사업 각각 5개)
 RISK_SETS = {
     "권리성 리스크": [
         ("개인정보 포함·미비식별", "가명처리·동의확보·PIA 수행"),
@@ -115,8 +122,12 @@ def go_to(step:int): st.session_state.step = step
 # 좌측 패널 (라디오 내비)
 # ===============================================
 STEPS = [
-    "📘 설명서", "① 기본가치(V₀)", "② 품질성(DQI)",
-    "③ 권리·시장·사업성(αβγ)", "④ 법률리스크(Δ)", "⑤ 결과요약"
+    "📘 설명서",
+    "① 기본가치(V₀)",
+    "② 품질성(DQI)",
+    "③ 권리·시장·사업성(αβγ)",   # 요청: δ는 알파베타감마 옆 표기 → 설명서/공식에서 함께 노출
+    "④ 법률리스크(δ)",           # 소문자 델타 표기
+    "⑤ 결과요약"
 ]
 with st.sidebar:
     st.markdown("### ⚙️ 단계 이동")
@@ -130,18 +141,13 @@ with st.sidebar:
 if st.session_state.step == 0:
     st.subheader("📘 평가 설명서")
     st.markdown("""
-    ️본 대시보드는 데이터의 실질적 가치를 체계적으로 산정하기 위한 워크플로우를 제공합니다.
-    ️사용자는 각 단계별로 필요한 정보를 입력하고 평가 기준에 따라 등급을 선택하여 데이터 가치를 산정할 수 있습니다.
-    ️최종 산정된 가치 및 근거는 CSV 파일로 다운로드할 수 있습니다.  
-    
-    데이터 가치를 선정하는 과정은 다음 5단계로 구성됩니다.
     1) **기본가치(V₀)**: 수익·시장·CVM 접근 중 선택  
     2) **품질성(DQI)**: 정확성/완전성/일관성/적시성/접근성 (각 20%)  
-    3) **α·β·γ**: 권리성(7항목), 시장성(6항목), 사업성(6항목) — **표의 가중치 그대로**  
-       - A/B/C(5/3/0) → 가중합(0-100) → 등급(A-E) → **계수(0.8~1.1)**  
-       - **미입력 시 계수=1.0**  
-    4) **Δ(법률리스크)**: 권리/시장/사업 5항목씩. **체크박스 미선택 시 Δ=1.0** (사용자 미조작 시 보정 미적용)  
-    5) **결과요약**: V_adj = V₀ × DQI × α × β × γ × Δ
+    3) **α·β·γ(권리·시장·사업성)**: 표의 세부항목/가중치 그대로, A/B/C → 점수 → **계수(0.8~1.1)**  
+       - *δ(법률리스크)는 별도 단계에서 입력하지만 화면 표기상 αβγ 옆에 함께 표기합니다.*  
+       - **미입력 시 각 계수=1.0**  
+    4) **δ(법률리스크)**: 권리/시장/사업 5항목씩, P×I 합계로 **0.8~1.1** 산식 적용(옵션)  
+    5) **결과요약**: V_adj = V₀ × DQI × α × β × γ × δ
     """)
     st.button("다음 ▶", on_click=go_to, args=(1,), key="next_0")
 
@@ -219,17 +225,22 @@ elif st.session_state.step == 3:
     with c2: st.button("다음 ▶", on_click=go_to, args=(4,), key="next_3")
 
 # ===============================================
-# 4️⃣ Δ(법률리스크) — 사용자 미조작 시 Δ=1.0
+# 4️⃣ δ(법률리스크) — 사용자 미조작 시 δ=1.0
 # ===============================================
 elif st.session_state.step == 4:
-    st.subheader("④ 법률리스크(Δ) — 위험도(P×I) 기반(0.8~1.1)")
+    st.subheader("④ 법률리스크(δ) — 위험도(P×I) 기반(0.8~1.1)")
 
-    # ❗ 새 옵션: 체크하지 않으면 Δ=1.0 (보정 미적용)
-    use_delta = st.checkbox("법률리스크 조정 적용", value=False, help="체크하면 아래 항목을 입력해 Δ(0.8~1.1)를 계산합니다. 미체크 시 Δ=1.0로 적용됩니다.", key="use_delta")
+    # 옵션: 체크하지 않으면 δ=1.0 (보정 미적용)
+    use_delta = st.checkbox(
+        "법률리스크 조정 적용(δ 활성화)",
+        value=False,
+        help="체크하면 아래 항목을 입력해 δ(0.8~1.1)를 계산합니다. 미체크 시 δ=1.0으로 적용됩니다.",
+        key="use_delta"
+    )
 
     if not use_delta:
         delta = 1.0
-        st.info("법률리스크 조정이 비활성화되어 Δ=1.00이 적용됩니다.")
+        st.info("법률리스크 조정이 비활성화되어 δ=1.00이 적용됩니다.")
     else:
         risk_rows = []
         for category, rows in RISK_SETS.items():
@@ -246,7 +257,7 @@ elif st.session_state.step == 4:
         severity = 0.0 if N==0 else max(0.0, min(1.0, (total - N) / (9*N - N)))
         delta = round(1.1 - 0.3 * severity, 3)   # 1.1(최저위험) → 0.8(최고위험)
 
-    st.metric("리스크 계수 Δ", delta)
+    st.metric("리스크 계수 δ", delta)
     st.session_state.scores["DELTA"] = delta
 
     c1,c2 = st.columns(2)
@@ -259,21 +270,31 @@ elif st.session_state.step == 4:
 elif st.session_state.step == 5:
     st.subheader("⑤ 결과요약 — 다운로드 미리보기")
     s = st.session_state.scores
-    V0 = s["V0"]; M = s["DQI"] * s["ALPHA"] * s["BETA"] * s["GAMMA"]; Δ = s["DELTA"]
-    V_adj = V0 * M * Δ
+    V0 = s["V0"]
+    mult = s["DQI"] * s["ALPHA"] * s["BETA"] * s["GAMMA"]
+    delta = s["DELTA"]
+    V_adj = V0 * mult * delta
+
     df = pd.DataFrame([
         {"요인":"V₀(기초가치)","값":V0},
         {"요인":"DQI(품질성)","값":s["DQI"]},
         {"요인":"α(권리성)","값":s["ALPHA"]},
         {"요인":"β(시장성)","값":s["BETA"]},
         {"요인":"γ(사업성)","값":s["GAMMA"]},
-        {"요인":"Δ(법률리스크)","값":Δ},
+        {"요인":"δ(법률리스크)","값":delta},
         {"요인":"최종가치(V_adj)","값":V_adj},
     ])
+
     st.dataframe(df, use_container_width=True, hide_index=True)
     st.metric("최종 산정가치(V_adj)", fmt_money(V_adj))
-    st.caption(f"V_adj = V₀ × DQI × α × β × γ × Δ = {fmt_money(V0)} × {M:.3f} × {Δ:.3f}")
-    st.download_button("📥 결과 CSV 다운로드",
+    st.caption(
+        f"V_adj = V₀ × DQI × α × β × γ × δ = {fmt_money(V0)} × {mult:.3f} × {delta:.3f}"
+    )
+    st.download_button(
+        "📥 결과 CSV 다운로드",
         data=df.to_csv(index=False).encode("utf-8-sig"),
-        file_name="data_value_summary.csv", mime="text/csv", key="download_csv")
+        file_name="data_value_summary.csv",
+        mime="text/csv",
+        key="download_csv"
+    )
     st.button("◀ 이전", on_click=go_to, args=(4,), key="back_5")
